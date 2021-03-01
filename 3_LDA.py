@@ -3,6 +3,7 @@ import pickle
 from nltk.corpus import stopwords
 from pprint import pprint
 import datetime
+import pandas as pd
 
 # Gensim
 import gensim
@@ -96,37 +97,65 @@ print("Created corpus")
 # [[(id2word[id], freq) for id, freq in cp] for cp in corpus[:1]]
 
 # %% Train or Load LDA, the topic model
-# the main hyperparameter for the LDA model is the expected number of topics, testing 25 models with topic numbers from 2-100. Then choose the model w highest coherence score. 
+
 # initialise variables
-LOAD_LDA, INPUT_MODEL_FILENAME = True, "lda_model_gensim-0103-1348"
-USE_MALLET_IMPLEMENTATION = False
-NUM_TOPICS = 20
-# Mallet's implementation via Gensim
+LOAD_LDA = True
+# INPUT_MODEL_FILENAME = "lda_model_gensim_20topics-0103-1348"
+INPUT_MODEL_FILENAME = "lda_model_mallet_47topics-0103-1547"
+
+# if training, we need these
+USE_MALLET_IMPLEMENTATION = True
+NUM_TOPICS = 47
+saved_results = [["NUM_TOPICS", "COHERENCE_SCORE", "MODEL_FILENAME"]]
+
+OUTPUT_FILENAME = ""
 # break the data down into topics, using Mallet's implementation via Gensim of Blei et al.'s Latent Dirichlet Allocation algorithm.
 if LOAD_LDA:
     with open(INPUT_MODEL_FILENAME, 'rb') as file:
         lda_model = pickle.load(file)
         print("Loaded LDA model '{}'".format(INPUT_MODEL_FILENAME))
-    
+# Mallet's implementation via Gensim
 elif USE_MALLET_IMPLEMENTATION:
     path_to_mallet_binary = "./mallet-2.0.8/bin/mallet"
     lda_model = LdaMallet(path_to_mallet_binary, corpus=corpus, num_topics=NUM_TOPICS, id2word=id2word)
-
-    with open('lda_model_mallet-' + datetime.datetime.now().strftime("%d%m-%H%M"),'wb') as file:
+    OUTPUT_FILENAME = 'lda_model_mallet_{}topics-{}'.format(NUM_TOPICS, datetime.datetime.now().strftime("%d%m-%H%M"))
+    with open(OUTPUT_FILENAME,'wb') as file:
         pickle.dump(lda_model, file)
         print("LDA (mallet) complete and saved")
 else:
     lda_model = gensim.models.ldamodel.LdaModel(corpus=corpus,
-                                           id2word=id2word,
-                                           num_topics=NUM_TOPICS, 
-                                           random_state=100,
-                                           update_every=1,
-                                           chunksize=100,
-                                           passes=10,
-                                           alpha='auto',
-                                           per_word_topics=True)
-    with open('lda_model_gensim-' + datetime.datetime.now().strftime("%d%m-%H%M"),'wb') as file:
+                                        id2word=id2word,
+                                        num_topics=NUM_TOPICS, 
+                                        random_state=100,
+                                        update_every=1,
+                                        chunksize=100,
+                                        passes=10,
+                                        alpha='auto',
+                                        per_word_topics=True)
+    OUTPUT_FILENAME = 'lda_model_gensim_{}topics-{}'.format(NUM_TOPICS, datetime.datetime.now().strftime("%d%m-%H%M"))
+    with open(OUTPUT_FILENAME,'wb') as file:
         pickle.dump(lda_model, file)
         print("LDA (gensim) complete and saved")
 
 
+# %% analyse the LDA model's topics
+# Print the Keyword in the topics
+# pprint(lda_model.print_topics())
+
+# Compute Perplexity
+# print('Perplexity: ', lda_model.log_perplexity(corpus))  # a measure of how good the model is. lower the better.
+
+# Compute Coherence Score
+# coherence_model_lda = CoherenceModel(model=lda_model, texts=data_lemmatized, dictionary=id2word, coherence='c_v')
+# coherence_lda = coherence_model_lda.get_coherence()
+# saved_results.append([NUM_TOPICS, coherence_lda, OUTPUT_FILENAME])
+# print('Coherence Score: ', coherence_lda)
+
+# df = pd.DataFrame(saved_results)
+# df.to_csv('lda_coherence_scores.csv', index=False, header=False)
+# the main hyperparameter for the LDA model is the expected number of topics, testing 25 models with topic numbers from 2-100. Then choose the model w highest coherence score. 
+
+# Visualize the topics
+# pyLDAvis.enable_notebook()
+# vis = pyLDAvis.gensim.prepare(lda_model, corpus, id2word)
+# vis
